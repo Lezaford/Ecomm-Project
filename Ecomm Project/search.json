@@ -69,7 +69,7 @@
             { "diagramNo": 18, "partId": "W10882096" },
             { "diagramNo": 19, "partId": "W10883717" },
             { "diagramNo": 20, "partId": "W10882101" },
-            { "diagramNo": 21, "partId": "" },
+            { "diagramNo": 21, "partId": "W10882102" },
             { "diagramNo": 22, "partId": "W10882103" },
             { "diagramNo": 23, "partId": "W10883733" },
             { "diagramNo": 24, "partId": "W10882106" },
@@ -126,13 +126,6 @@
             { "diagramNo": 32, "partId": "W10882148" },
             { "diagramNo": 33, "partId": "W10883826" }
           ]
-        },
-        {
-          "id": "S-WTW2000HW0-04",
-          "name": "Optional parts(Not Included)",
-          "order": 4,
-          "image": "schematics/WTW2000HW0-04.png",
-          "parts": []
         }
       ]
     },

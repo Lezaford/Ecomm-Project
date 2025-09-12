@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Product – Appliance Parts</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+  </head>
+  <body>
+
+    <!-- Header (on every page) -->
+    <header>
+      <a href="index.html" aria-label="Home">Appliance Parts</a>
+      <form id="header-search" role="search" aria-label="Search">
+        <input
+          id="header-search-input"
+          type="search"
+          placeholder="Enter Model or Part Number"
+          autocomplete="off"
+          required
+        />
+        <button type="submit">Search</button>
+      </form>
+      <nav>
+        <a id="cart-link" href="cart.html" aria-label="Cart">
+          Cart (<span id="cart-count">0</span>)
+        </a>
+      </nav>
+    </header>
+
+    <main>
+      <h1 id="product-title">Part</h1>
+
+      <!-- Product details table -->
+      <table id="product-table" border="1" cellspacing="0" cellpadding="4">
+        <tbody>
+          <tr>
+            <th scope="row">Name</th>
+            <td id="p-name"></td>
+          </tr>
+          <tr>
+            <th scope="row">Part #</th>
+            <td id="p-number"></td>
+          </tr>
+          <tr>
+            <th scope="row">Product Status</th>
+            <td id="p-status"></td>
+          </tr>
+          <tr>
+            <th scope="row">Inventory</th>
+            <td id="p-inventory"></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- Add to Cart -->
+      <section>
+        <h2>Add to Cart</h2>
+        <label for="qty">Quantity</label>
+        <input id="qty" type="number" min="1" step="1" value="1" />
+        <button id="add-to-cart">Add to Cart</button>
+        <p id="purchase-note"></p>
+      </section>
+
+      <div id="loading">Loading…</div>
+      <div id="error" hidden></div>
+    </main>
+
+    <!-- Search/routing logic (runSearch) -->
+    <script src="search.js"></script>
+    <script>
+      // -------- Utilities --------
+      function getParam(name) {
+        var m = new RegExp("[?&]" + encodeURIComponent(name) + "=([^&]*)").exec(location.search);
+        return m ? decodeURIComponent(m[1].replace(/\+/g, " ")) : "";
+      }
+      function setText(id, v) { var el = document.getElementById(id); if (el) el.textContent = v; }
+      function setHidden(id, h) { var el = document.getElementById(id); if (el) el.hidden = !!h; }
+      function titleCaseStatus(s) {
+        var map = { in_stock: "In Stock", out_of_stock: "Out of Stock", backordered: "Backordered", discontinued: "Discontinued" };
+        return map[s] || (s ? String(s) : "");
+      }
+
+      // -------- Header hooks --------
+      (function initCartCount(){
+        try {
+          var c = Number(localStorage.getItem("cartCount") || "0");
+          document.getElementById("cart-count").textContent = String(c);
+        } catch (e) {}
+      })();
+
+      document.getElementById("header-search").addEventListener("submit", function(e){
+        e.preventDefault();
+        var q = (document.getElementById("header-search-input").value || "").trim();
+        if (q) runSearch(q);
+      });
+
+      // -------- Cart helpers (localStorage) --------
+      function getCart() {
+        try { return JSON.parse(localStorage.getItem("cart") || "[]"); } catch (e) { return []; }
+      }
+      function setCart(cart) {
+        localStorage.setItem("cart", JSON.stringify(cart));
+        var count = cart.reduce(function(sum, item){ return sum + (Number(item.qty) || 0); }, 0);
+        localStorage.setItem("cartCount", String(count));
+        var el = document.getElementById("cart-count");
+        if (el) el.textContent = String(count);
+      }
+      function addToCart(partId, qty) {
+        var cart = getCart();
+        var existing = cart.find(function(i){ return i.id === partId; });
+        if (existing) existing.qty = Number(existing.qty || 0) + qty;
+        else cart.push({ id: partId, qty: qty });
+        setCart(cart);
+      }
+
+      // -------- Page logic --------
+      // Displays only the selected part with fields:
+      // Name, Part Number, Product Status, Inventory
+      // and an option to add to cart.
+      (async function loadProduct(){
+        var partId = getParam("id");
+        if (!partId) {
+          setText("error", "No part specified.");
+          setHidden("error", false);
+          setHidden("loading", true);
+          return;
+        }
+
+        try {
+          var res = await fetch("search.json", { headers: { "Accept": "application/json" }, cache: "no-store" });
+          if (!res.ok) throw new Error("HTTP " + res.status);
+          var data = await res.json();
+
+          var part = Array.isArray(data.parts)
+            ? data.parts.find(function(p){ return p && (p.id === partId || p.number === partId); })
+            : null;
+
+          if (!part) {
+            setText("error", "Part not found.");
+            setHidden("error", false);
+            setHidden("loading", true);
+            return;
+          }
+
+          // Fill fields
+          var name = part.name || part.description || "";
+          var number = part.number || part.id || "";
+          var statusRaw = part.productStatus || "";
+          var statusNice = titleCaseStatus(statusRaw);
+          var inventory = (typeof part.inventory === "number") ? part.inventory : "";
+
+          setText("product-title", name ? ("Part: " + name) : ("Part " + number));
+          setText("p-name", name);
+          setText("p-number", number);
+          setText("p-status", statusNice);
+          setText("p-inventory", String(inventory));
+
+          // Purchase rules (MVP):
+          // Enable Add to Cart only when status is "in_stock" and inventory > 0
+          var purchasable = (statusRaw === "in_stock" && Number(inventory) > 0);
+          var qtyInput = document.getElementById("qty");
+          var btn = document.getElementById("add-to-cart");
+          qtyInput.disabled = !purchasable;
+          btn.disabled = !purchasable;
+
+          if (!purchasable) {
+            var note = "This item is not available for purchase.";
+            if (statusRaw === "discontinued") note = "This item is discontinued.";
+            else if (statusRaw === "out_of_stock") note = "This item is currently out of stock.";
+            else if (statusRaw === "backordered") note = "Backorder purchasing not enabled yet.";
+            setText("purchase-note", note);
+          } else {
+            setText("purchase-note", "");
+            // Clamp qty to available inventory
+            qtyInput.max = String(inventory);
+          }
+
+          btn.addEventListener("click", function(){
+            var q = Math.max(1, parseInt(qtyInput.value, 10) || 1);
+            if (purchasable && inventory) q = Math.min(q, Number(inventory));
+            addToCart(part.id || number, q);
+            alert("Added to cart: " + number + " × " + q);
+          });
+
+          setHidden("loading", true);
+        } catch (e) {
+          setText("error", "Failed to load product.");
+          setHidden("error", false);
+          setHidden("loading", true);
+        }
+      })();
+    </script>
+  </body>
+</html>

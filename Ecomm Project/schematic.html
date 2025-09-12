@@ -2,12 +2,12 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>Schematics – Appliance Parts</title>
+    <title>Schematics & Parts – Appliance Parts</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
   </head>
   <body>
 
-    <!-- Header -->
+    <!-- Header (present on every page) -->
     <header>
       <a href="index.html" aria-label="Home">Appliance Parts</a>
       <form id="header-search" role="search" aria-label="Search">
@@ -27,19 +27,15 @@
       </nav>
     </header>
 
-    <!-- Main -->
     <main>
       <h1 id="page-title">Schematics</h1>
-
-      <!-- If a modelId is provided, list ALL schematics (image + clickable label) in order -->
-      <!-- If a schematic id is provided, show just that one image + clickable label -->
-      <div id="schematic-container"></div>
+      <div id="content"></div>
 
       <div id="loading">Loading…</div>
       <div id="error" hidden></div>
     </main>
 
-    <!-- External search logic (runSearch) -->
+    <!-- Uses runSearch from search.js -->
     <script src="search.js"></script>
     <script>
       // ---------- Utilities ----------
@@ -61,14 +57,9 @@
         if (text != null) n.textContent = text;
         return n;
       }
+      function clear(node) { while (node.firstChild) node.removeChild(node.firstChild); }
 
       // ---------- Header hooks ----------
-      document.getElementById("header-search").addEventListener("submit", function(e){
-        e.preventDefault();
-        var q = (document.getElementById("header-search-input").value || "").trim();
-        if (q) runSearch(q);
-      });
-
       (function initCartCount(){
         try {
           var c = Number(localStorage.getItem("cartCount") || "0");
@@ -76,54 +67,109 @@
         } catch (e) {}
       })();
 
+      document.getElementById("header-search").addEventListener("submit", function(e){
+        e.preventDefault();
+        var q = (document.getElementById("header-search-input").value || "").trim();
+        if (q) runSearch(q);
+      });
+
       // ---------- Page logic ----------
-      // Contract: data lives in search.json
-      // We support:
+      // Supports:
       //   - ?modelId=...  -> render ALL schematics for that model, in order
       //   - ?id=...       -> render a single schematic by id
-      async function loadSchematics() {
+      async function loadPage() {
         var modelId = getParam("modelId");
         var schemId = getParam("id");
 
         try {
-          var res = await fetch("search.json", { headers: { "Accept": "application/json" } });
+          var res = await fetch("search.json", { headers: { "Accept": "application/json" }, cache: "no-store" });
           if (!res.ok) throw new Error("HTTP " + res.status);
           var data = await res.json();
 
-          var container = document.getElementById("schematic-container");
-          container.innerHTML = "";
+          var content = document.getElementById("content");
+          clear(content);
 
-          function renderSchematic(s, parentModel) {
-            // image
-            var img = create("img", { alt: s.name ? ("Schematic – " + s.name) : "Schematic image" });
-            if (s.image) img.src = s.image;
-            container.appendChild(img);
-
-            // clickable label (links back to model page anchor for reference)
-            var label = s.name || "Schematic";
-            var linkHref = parentModel && parentModel.id
-              ? ("model.html?id=" + encodeURIComponent(parentModel.id) + "#" + encodeURIComponent(s.id))
-              : ("schematic.html?id=" + encodeURIComponent(s.id));
-            var p = create("p");
-            var a = create("a", { href: linkHref }, label);
-            p.appendChild(a);
-            container.appendChild(p);
+          // Build part index for quick lookup (by id)
+          var partIndex = {};
+          if (Array.isArray(data.parts)) {
+            data.parts.forEach(function(p){ if (p && p.id) partIndex[p.id] = p; });
           }
 
-          // Single schematic view by id
+          function renderPartsTable(partsList) {
+            var table = create("table", { border: "1", cellspacing: "0", cellpadding: "4" });
+            var thead = create("thead");
+            var trh = create("tr");
+            trh.appendChild(create("th", {}, "Diagram #"));
+            trh.appendChild(create("th", {}, "Part #"));
+            trh.appendChild(create("th", {}, "Name"));
+            thead.appendChild(trh);
+            table.appendChild(thead);
+
+            var tbody = create("tbody");
+
+            if (!Array.isArray(partsList) || !partsList.length) {
+              var trEmpty = create("tr");
+              var tdEmpty = create("td", { colspan: "3" }, "No parts for this schematic.");
+              trEmpty.appendChild(tdEmpty);
+              tbody.appendChild(trEmpty);
+            } else {
+              partsList.forEach(function(row){
+                var tr = create("tr");
+
+                var tdDiag = create("td", {}, (row.diagramNo != null) ? String(row.diagramNo) : "");
+                tr.appendChild(tdDiag);
+
+                var tdPart = create("td");
+                var meta = row.partId ? partIndex[row.partId] : null;
+                if (meta && meta.id) {
+                  var a = create("a", { href: "product.html?id=" + encodeURIComponent(meta.id) }, (meta.number || meta.id));
+                  tdPart.appendChild(a);
+                } else if (row.partId) {
+                  // Fallback if metadata not present yet
+                  tdPart.textContent = row.partId;
+                } else {
+                  tdPart.textContent = "";
+                }
+                tr.appendChild(tdPart);
+
+                var tdName = create("td", {}, meta ? (meta.name || meta.description || "") : "");
+                tr.appendChild(tdName);
+
+                tbody.appendChild(tr);
+              });
+            }
+
+            table.appendChild(tbody);
+            return table;
+          }
+
+          function renderSchematicBlock(schematic, parentModel) {
+            // Title for this schematic (optional)
+            var h2 = create("h2", {}, schematic.name ? schematic.name : "Schematic");
+            content.appendChild(h2);
+
+            // Image
+            var img = create("img", { alt: schematic.name ? ("Schematic – " + schematic.name) : "Schematic" });
+            if (schematic.image) img.src = schematic.image;
+            content.appendChild(img);
+
+            // Parts table directly UNDER the image
+            var partsTable = renderPartsTable(schematic.parts || []);
+            content.appendChild(partsTable);
+          }
+
+          // Single schematic view
           if (schemId) {
             var found = null, parent = null;
 
-            // search top-level
             if (Array.isArray(data.schematics)) {
-              found = data.schematics.find(function(x){ return x && x.id === schemId; }) || null;
+              found = data.schematics.find(function(s){ return s && s.id === schemId; }) || null;
             }
-            // search nested in models
             if (!found && Array.isArray(data.models)) {
               data.models.some(function(m){
                 if (Array.isArray(m.schematics)) {
-                  var hit = m.schematics.find(function(x){ return x && x.id === schemId; });
-                  if (hit) { found = hit; parent = m; return true; }
+                  var s = m.schematics.find(function(x){ return x && x.id === schemId; });
+                  if (s) { found = s; parent = m; return true; }
                 }
                 return false;
               });
@@ -136,18 +182,17 @@
               return;
             }
 
-            if (parent && parent.modelNumber) {
-              setText("page-title", "Schematic: " + (found.name || "") + " (Model " + parent.modelNumber + ")");
-            } else {
-              setText("page-title", "Schematic: " + (found.name || ""));
-            }
+            var title = "Schematic";
+            if (found.name) title += ": " + found.name;
+            if (parent && parent.modelNumber) title += " (Model " + parent.modelNumber + ")";
+            setText("page-title", title);
 
-            renderSchematic(found, parent);
+            renderSchematicBlock(found, parent);
             setHidden("loading", true);
             return;
           }
 
-          // Model view: list all schematics in order
+          // Model view (all schematics for model, in order)
           if (modelId) {
             var model = Array.isArray(data.models)
               ? data.models.find(function(m){ return m && m.id === modelId; })
@@ -162,7 +207,14 @@
 
             setText("page-title", "Schematics for Model " + (model.modelNumber || ""));
 
-            var list = Array.isArray(model.schematics) ? model.schematics : [];
+            var list = Array.isArray(model.schematics) ? model.schematics.slice() : [];
+            // If an 'order' field exists, sort ascending
+            list.sort(function(a, b){
+              var aa = (a && typeof a.order === "number") ? a.order : 0;
+              var bb = (b && typeof b.order === "number") ? b.order : 0;
+              return aa - bb;
+            });
+
             if (!list.length) {
               setText("error", "No schematics for this model.");
               setHidden("error", false);
@@ -170,27 +222,26 @@
               return;
             }
 
-            // Render each schematic image with a clickable label
             list.forEach(function(s){
-              renderSchematic(s, model);
+              renderSchematicBlock(s, model);
             });
 
             setHidden("loading", true);
             return;
           }
 
-          // If no params given
+          // Neither schemId nor modelId provided
           setText("error", "No model or schematic specified.");
           setHidden("error", false);
           setHidden("loading", true);
         } catch (e) {
-          setText("error", "Failed to load schematics.");
+          setText("error", "Failed to load data.");
           setHidden("error", false);
           setHidden("loading", true);
         }
       }
 
-      loadSchematics();
+      loadPage();
     </script>
   </body>
 </html>
