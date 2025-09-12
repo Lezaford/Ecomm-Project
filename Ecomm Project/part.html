@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Parts – Appliance Parts</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+  </head>
+  <body>
+
+    <!-- Header (present on every page) -->
+    <header>
+      <a href="index.html" aria-label="Home">Appliance Parts</a>
+      <form id="header-search" role="search" aria-label="Search">
+        <input
+          id="header-search-input"
+          type="search"
+          placeholder="Enter Model or Part Number"
+          autocomplete="off"
+          required
+        />
+        <button type="submit">Search</button>
+      </form>
+      <nav>
+        <a id="cart-link" href="cart.html" aria-label="Cart">
+          Cart (<span id="cart-count">0</span>)
+        </a>
+      </nav>
+    </header>
+
+    <!-- Main content -->
+    <main>
+      <h1 id="page-title">Schematic & Parts</h1>
+
+      <!-- Chosen schematic image -->
+      <section id="schematic-view">
+        <img id="schematic-image" alt="Schematic image" />
+        <p id="image-missing" hidden>No schematic image available.</p>
+      </section>
+
+      <!-- Parts table (for the chosen schematic) -->
+      <section>
+        <h2>Parts</h2>
+        <table id="parts-table" border="1" cellspacing="0" cellpadding="4">
+          <thead>
+            <tr>
+              <th scope="col">Diagram #</th>
+              <th scope="col">Part #</th>
+              <th scope="col">Name</th>
+            </tr>
+          </thead>
+          <tbody id="parts-tbody"></tbody>
+        </table>
+        <p id="no-parts" hidden>No parts found for this schematic.</p>
+      </section>
+
+      <!-- Status -->
+      <div id="loading">Loading…</div>
+      <div id="error" hidden></div>
+    </main>
+
+    <!-- External search logic (runSearch is defined here) -->
+    <script src="search.js"></script>
+    <script>
+      // -------- Utilities --------
+      function getParam(name) {
+        var m = new RegExp("[?&]" + encodeURIComponent(name) + "=([^&]*)").exec(location.search);
+        return m ? decodeURIComponent(m[1].replace(/\+/g, " ")) : "";
+      }
+      function setHidden(id, hidden) {
+        var el = document.getElementById(id);
+        if (el) el.hidden = !!hidden;
+      }
+      function setText(id, value) {
+        var el = document.getElementById(id);
+        if (el) el.textContent = value;
+      }
+      function clearNode(node) {
+        while (node.firstChild) node.removeChild(node.firstChild);
+      }
+
+      // -------- Header hooks --------
+      document.getElementById("header-search").addEventListener("submit", function(e){
+        e.preventDefault();
+        var q = (document.getElementById("header-search-input").value || "").trim();
+        if (q) runSearch(q);
+      });
+
+      (function initCartCount(){
+        try {
+          var c = Number(localStorage.getItem("cartCount") || "0");
+          document.getElementById("cart-count").textContent = String(c);
+        } catch (e) {}
+      })();
+
+      // -------- Page logic --------
+      // Contract: data lives in search.json
+      // This page expects ?id={schematicId}
+      // It renders that schematic image and a table of its parts with columns:
+      // Diagram # | Part # | Name
+      async function loadPage() {
+        var schemId = getParam("id");
+        if (!schemId) {
+          setHidden("loading", true);
+          setText("error", "No schematic specified.");
+          setHidden("error", false);
+          return;
+        }
+
+        try {
+          var res = await fetch("search.json", { headers: { "Accept": "application/json" } });
+          if (!res.ok) throw new Error("HTTP " + res.status);
+          var data = await res.json();
+
+          // Find schematic by id (supports top-level or nested under models)
+          function findSchematic(id) {
+            var found = null, parentModel = null;
+
+            if (Array.isArray(data.schematics)) {
+              found = data.schematics.find(function(s){ return s && s.id === id; }) || null;
+            }
+            if (!found && Array.isArray(data.models)) {
+              data.models.some(function(m){
+                if (Array.isArray(m.schematics)) {
+                  var hit = m.schematics.find(function(s){ return s && s.id === id; });
+                  if (hit) { found = hit; parentModel = m; return true; }
+                }
+                return false;
+              });
+            }
+            return { schematic: found, model: parentModel };
+          }
+
+          var hit = findSchematic(schemId);
+          var schematic = hit.schematic;
+          var parent = hit.model;
+
+          if (!schematic) {
+            setHidden("loading", true);
+            setText("error", "Schematic not found.");
+            setHidden("error", false);
+            return;
+          }
+
+          // Title
+          var title = "Schematic & Parts";
+          if (schematic.name) title += ": " + schematic.name;
+          if (parent && parent.modelNumber) title += " (Model " + parent.modelNumber + ")";
+          setText("page-title", title);
+
+          // Schematic image
+          var img = document.getElementById("schematic-image");
+          if (schematic.image) {
+            img.src = schematic.image;
+            img.alt = schematic.name ? ("Schematic – " + schematic.name) : "Schematic image";
+            setHidden("image-missing", true);
+          } else {
+            img.removeAttribute("src");
+            setHidden("image-missing", false);
+          }
+
+          // Build a quick index of parts for name/number lookup
+          var partIndex = {};
+          if (Array.isArray(data.parts)) {
+            data.parts.forEach(function(p){ if (p && p.id) partIndex[p.id] = p; });
+          }
+
+          // Parts table rows
+          var tbody = document.getElementById("parts-tbody");
+          clearNode(tbody);
+
+          var rows = Array.isArray(schematic.parts) ? schematic.parts : [];
+          if (!rows.length) {
+            setHidden("no-parts", false);
+          } else {
+            setHidden("no-parts", true);
+
+            rows.forEach(function(entry){
+              var tr = document.createElement("tr");
+
+              var tdDiag = document.createElement("td");
+              tdDiag.textContent = (entry.diagramNo != null) ? String(entry.diagramNo) : "";
+              tr.appendChild(tdDiag);
+
+              var tdPartNum = document.createElement("td");
+              var meta = partIndex[entry.partId];
+              // Part number cell is clickable (links to same page pattern if you later add a dedicated part-detail page)
+              if (meta && meta.number) {
+                var a = document.createElement("a");
+                // Keep link target flexible; if you add a product detail page later, change this href.
+                a.href = "product.html?id=" + encodeURIComponent(meta.id);
+                a.textContent = meta.number;
+                tdPartNum.appendChild(a);
+              } else {
+                tdPartNum.textContent = entry.partId || "";
+              }
+              tr.appendChild(tdPartNum);
+
+              var tdName = document.createElement("td");
+              tdName.textContent = (meta && (meta.name || meta.description)) ? (meta.name || meta.description) : "";
+              tr.appendChild(tdName);
+
+              tbody.appendChild(tr);
+            });
+          }
+
+          setHidden("loading", true);
+        } catch (err) {
+          setHidden("loading", true);
+          setText("error", "Failed to load data.");
+          setHidden("error", false);
+        }
+      }
+
+      loadPage();
+    </script>
+  </body>
+</html>

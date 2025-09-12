@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Appliance Parts – Landing</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+  </head>
+  <body>
+
+    <!-- Header (Include on all pages) -->
+    <header>
+      <a href="index.html" aria-label="Home">Appliance Parts</a>
+      <form id="header-search" role="search" aria-label="Search">
+        <input
+          id="header-search-input"
+          type="search"
+          placeholder="Enter Model or Part Number"
+          autocomplete="off"
+          required
+        />
+        <button type="submit">Search</button>
+      </form>
+      <nav>
+        <a id="cart-link" href="cart.html" aria-label="Cart">
+          Cart (<span id="cart-count">0</span>)
+        </a>
+      </nav>
+    </header>
+
+    <!-- Landing body -->
+    <main>
+      <h1>Find Your Part</h1>
+      <form id="main-search" role="search" aria-label="Search">
+        <input
+          id="main-search-input"
+          type="search"
+          placeholder="Enter Model or Part Number"
+          autocomplete="off"
+          required
+        />
+        <button type="submit">Search</button>
+      </form>
+    </main>
+
+    <!-- Call external search.js -->
+    <script src="search.js"></script>
+    <script>
+      document.getElementById("header-search").addEventListener("submit", function(e) {
+        e.preventDefault();
+        runSearch(document.getElementById("header-search-input").value);
+      });
+
+      document.getElementById("main-search").addEventListener("submit", function(e) {
+        e.preventDefault();
+        runSearch(document.getElementById("main-search-input").value);
+      });
+
+      // Cart count display
+      document.addEventListener("DOMContentLoaded", function () {
+        try {
+          const count = Number(localStorage.getItem("cartCount") || "0");
+          document.getElementById("cart-count").textContent = String(count);
+        } catch (e) {}
+      });
+    </script>
+  </body>
+</html>

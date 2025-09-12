@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Model Details – Appliance Parts</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+  </head>
+  <body>
+
+    <!-- Header -->
+    <header>
+      <a href="index.html" aria-label="Home">Appliance Parts</a>
+      <form id="header-search" role="search" aria-label="Search">
+        <input
+          id="header-search-input"
+          type="search"
+          placeholder="Enter Model or Part Number"
+          required
+        />
+        <button type="submit">Search</button>
+      </form>
+      <nav>
+        <a id="cart-link" href="cart.html" aria-label="Cart">
+          Cart (<span id="cart-count">0</span>)
+        </a>
+      </nav>
+    </header>
+
+    <!-- Main content -->
+    <main>
+      <h1 id="model-title">Model</h1>
+      <p id="model-brand"></p>
+
+      <h2>Schematics</h2>
+      <ul id="schematic-list"></ul>
+    </main>
+
+    <!-- External scripts -->
+    <script src="search.js"></script>
+    <script>
+      // get query param from URL
+      function getParam(name) {
+        const m = new RegExp("[?&]" + encodeURIComponent(name) + "=([^&]*)").exec(location.search);
+        return m ? decodeURIComponent(m[1].replace(/\+/g, " ")) : "";
+      }
+
+      // Populate cart count
+      document.addEventListener("DOMContentLoaded", function () {
+        try {
+          const count = Number(localStorage.getItem("cartCount") || "0");
+          document.getElementById("cart-count").textContent = String(count);
+        } catch (e) {}
+      });
+
+      // Bind header search to runSearch
+      document.getElementById("header-search").addEventListener("submit", function(e) {
+        e.preventDefault();
+        runSearch(document.getElementById("header-search-input").value);
+      });
+
+      // Load model details from JSON
+      async function loadModel() {
+        const modelId = getParam("id");
+        if (!modelId) {
+          document.getElementById("model-title").textContent = "No model specified.";
+          return;
+        }
+
+        const res = await fetch("search.json");
+        const data = await res.json();
+        const model = data.models.find(m => m.id === modelId);
+
+        if (!model) {
+          document.getElementById("model-title").textContent = "Model not found.";
+          return;
+        }
+
+        // Fill in model details
+        document.getElementById("model-title").textContent = "Model " + model.modelNumber;
+        document.getElementById("model-brand").textContent = "Brand: " + (model.brand || "");
+
+        // List schematics
+        const ul = document.getElementById("schematic-list");
+        ul.innerHTML = "";
+        (model.schematics || []).forEach(s => {
+          const li = document.createElement("li");
+          const a = document.createElement("a");
+          a.href = "schematic.html?id=" + encodeURIComponent(s.id);
+          a.textContent = s.name;
+          li.appendChild(a);
+          ul.appendChild(li);
+        });
+      }
+
+      loadModel();
+    </script>
+  </body>
+</html>

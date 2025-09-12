@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Schematics – Appliance Parts</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+  </head>
+  <body>
+
+    <!-- Header -->
+    <header>
+      <a href="index.html" aria-label="Home">Appliance Parts</a>
+      <form id="header-search" role="search" aria-label="Search">
+        <input
+          id="header-search-input"
+          type="search"
+          placeholder="Enter Model or Part Number"
+          autocomplete="off"
+          required
+        />
+        <button type="submit">Search</button>
+      </form>
+      <nav>
+        <a id="cart-link" href="cart.html" aria-label="Cart">
+          Cart (<span id="cart-count">0</span>)
+        </a>
+      </nav>
+    </header>
+
+    <!-- Main -->
+    <main>
+      <h1 id="page-title">Schematics</h1>
+
+      <!-- If a modelId is provided, list ALL schematics (image + clickable label) in order -->
+      <!-- If a schematic id is provided, show just that one image + clickable label -->
+      <div id="schematic-container"></div>
+
+      <div id="loading">Loading…</div>
+      <div id="error" hidden></div>
+    </main>
+
+    <!-- External search logic (runSearch) -->
+    <script src="search.js"></script>
+    <script>
+      // ---------- Utilities ----------
+      function getParam(name) {
+        var m = new RegExp("[?&]" + encodeURIComponent(name) + "=([^&]*)").exec(location.search);
+        return m ? decodeURIComponent(m[1].replace(/\+/g, " ")) : "";
+      }
+      function setHidden(id, hidden) {
+        var el = document.getElementById(id);
+        if (el) el.hidden = !!hidden;
+      }
+      function setText(id, text) {
+        var el = document.getElementById(id);
+        if (el) el.textContent = text;
+      }
+      function create(tag, attrs, text) {
+        var n = document.createElement(tag);
+        if (attrs) for (var k in attrs) n.setAttribute(k, attrs[k]);
+        if (text != null) n.textContent = text;
+        return n;
+      }
+
+      // ---------- Header hooks ----------
+      document.getElementById("header-search").addEventListener("submit", function(e){
+        e.preventDefault();
+        var q = (document.getElementById("header-search-input").value || "").trim();
+        if (q) runSearch(q);
+      });
+
+      (function initCartCount(){
+        try {
+          var c = Number(localStorage.getItem("cartCount") || "0");
+          document.getElementById("cart-count").textContent = String(c);
+        } catch (e) {}
+      })();
+
+      // ---------- Page logic ----------
+      // Contract: data lives in search.json
+      // We support:
+      //   - ?modelId=...  -> render ALL schematics for that model, in order
+      //   - ?id=...       -> render a single schematic by id
+      async function loadSchematics() {
+        var modelId = getParam("modelId");
+        var schemId = getParam("id");
+
+        try {
+          var res = await fetch("search.json", { headers: { "Accept": "application/json" } });
+          if (!res.ok) throw new Error("HTTP " + res.status);
+          var data = await res.json();
+
+          var container = document.getElementById("schematic-container");
+          container.innerHTML = "";
+
+          function renderSchematic(s, parentModel) {
+            // image
+            var img = create("img", { alt: s.name ? ("Schematic – " + s.name) : "Schematic image" });
+            if (s.image) img.src = s.image;
+            container.appendChild(img);
+
+            // clickable label (links back to model page anchor for reference)
+            var label = s.name || "Schematic";
+            var linkHref = parentModel && parentModel.id
+              ? ("model.html?id=" + encodeURIComponent(parentModel.id) + "#" + encodeURIComponent(s.id))
+              : ("schematic.html?id=" + encodeURIComponent(s.id));
+            var p = create("p");
+            var a = create("a", { href: linkHref }, label);
+            p.appendChild(a);
+            container.appendChild(p);
+          }
+
+          // Single schematic view by id
+          if (schemId) {
+            var found = null, parent = null;
+
+            // search top-level
+            if (Array.isArray(data.schematics)) {
+              found = data.schematics.find(function(x){ return x && x.id === schemId; }) || null;
+            }
+            // search nested in models
+            if (!found && Array.isArray(data.models)) {
+              data.models.some(function(m){
+                if (Array.isArray(m.schematics)) {
+                  var hit = m.schematics.find(function(x){ return x && x.id === schemId; });
+                  if (hit) { found = hit; parent = m; return true; }
+                }
+                return false;
+              });
+            }
+
+            if (!found) {
+              setText("error", "Schematic not found.");
+              setHidden("error", false);
+              setHidden("loading", true);
+              return;
+            }
+
+            if (parent && parent.modelNumber) {
+              setText("page-title", "Schematic: " + (found.name || "") + " (Model " + parent.modelNumber + ")");
+            } else {
+              setText("page-title", "Schematic: " + (found.name || ""));
+            }
+
+            renderSchematic(found, parent);
+            setHidden("loading", true);
+            return;
+          }
+
+          // Model view: list all schematics in order
+          if (modelId) {
+            var model = Array.isArray(data.models)
+              ? data.models.find(function(m){ return m && m.id === modelId; })
+              : null;
+
+            if (!model) {
+              setText("error", "Model not found.");
+              setHidden("error", false);
+              setHidden("loading", true);
+              return;
+            }
+
+            setText("page-title", "Schematics for Model " + (model.modelNumber || ""));
+
+            var list = Array.isArray(model.schematics) ? model.schematics : [];
+            if (!list.length) {
+              setText("error", "No schematics for this model.");
+              setHidden("error", false);
+              setHidden("loading", true);
+              return;
+            }
+
+            // Render each schematic image with a clickable label
+            list.forEach(function(s){
+              renderSchematic(s, model);
+            });
+
+            setHidden("loading", true);
+            return;
+          }
+
+          // If no params given
+          setText("error", "No model or schematic specified.");
+          setHidden("error", false);
+          setHidden("loading", true);
+        } catch (e) {
+          setText("error", "Failed to load schematics.");
+          setHidden("error", false);
+          setHidden("loading", true);
+        }
+      }
+
+      loadSchematics();
+    </script>
+  </body>
+</html>
