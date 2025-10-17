@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <link rel="stylesheet" href="style.css" />
+    <meta charset="utf-8" />
+    <title>Part Details</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      /*-- Page layout --*/
+      .product-layout{
+        max-width: 1100px;
+        margin: 0 auto;
+        display: grid;
+        grid-template-columns: 1fr 360px; /* left content | right sidebar */
+        gap: 18px;
+      }
+      .product-main, .product-aside{
+        background:#fff;
+        border:1px solid var(--border);
+        border-radius:10px;
+      }
+      .product-main{ padding:16px 18px; }
+      .product-aside{ padding:14px; height: fit-content; position: sticky; top: 16px; }
+
+      /*-- Left column content --*/
+      #product-title{
+        margin: 2px 0 10px;
+        font-size: 22px;
+        font-weight: 800;
+        letter-spacing: .2px;
+      }
+      .price-block{ margin: 6px 0 12px; }
+      .price-row{
+        display:flex; gap:10px; align-items:baseline; margin: 4px 0;
+      }
+      .price-row .label{ color:#6b7280; min-width:120px; }
+      .price-row .retail{ font-weight:700; }
+      .price-row.your .value{ color:#c21500; font-weight:800; } /* Your Price highlight */
+
+      .info-line{ margin: 8px 0; }
+      .info-line .label{ color:#6b7280; }
+      .info-line .value{ font-weight:700; margin-left:6px; }
+
+      .stock{
+        margin-top: 8px;
+        font-weight:700;
+      }
+      .stock.in{ color:#0a8a2a; }
+      .stock.out{ color:#b91c1c; }
+
+      /* ---- Right sidebar (quantity + add button) ---- */
+      .field{ display:flex; flex-direction:column; gap:6px; margin-bottom:12px; }
+      .field label{ font-size:14px; color:#374151; }
+      #qty{
+        width: 100%;
+        max-width: 110px;
+        padding: 8px 10px;
+        border:1px solid var(--border);
+        border-radius:8px;
+        text-align:center;
+      }
+      #add-btn{
+        width: 100%;
+        padding: 12px 14px;
+        border-radius: 10px;
+        font-weight: 700;
+      }
+      #add-btn:disabled{ opacity: .55; cursor:not-allowed; }
+
+      /* small screens → stack */
+      @media (max-width: 820px){
+        .product-layout{ grid-template-columns: 1fr; }
+        .product-aside{ position: static; }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Header -->
+    <header>
+      <div class="header-inner">
+        <a class="header-logo" href="index.html" aria-label="Home">
+          <img src="/logo/logo.png" alt="Appliance Parts Home" />
+        </a>
+        <form id="header-search" role="search" aria-label="Search">
+          <input id="header-search-input" type="search" placeholder="Enter Model or Part Number" autocomplete="off" required />
+          <button type="submit">Search</button>
+        </form>
+        <a id="cart-link" class="header-cart" href="cart.html" aria-label="Cart">
+          <svg class="cart-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M7 18a2 2 0 1 0 0 4 2 2 0 0 0 0-4Zm10 0a2 2 0 1 0 .001 3.999A2 2 0 0 0 17 18ZM5.1 5h-.8a1 1 0 1 1 0-2h2.1c.46 0 .86.31.97.75L8 6h11a1 1 0 0 1 .96 1.27l-1.8 6.3A2 2 0 0 1 16.27 15H9.12a2 2 0 0 1-1.94-1.52L5.1 5Zm3.2 9h7.97a.5.5 0 0 0 .48-.36L18.3 8H8.56l1.74 6.02a.5.5 0 0 0 .5.38Z"/>
+          </svg>
+          <span id="cart-count" aria-live="polite">0</span>
+        </a>
+      </div>
+    </header>
+
+    <main>
+      <div id="loading" class="panel">Loading…</div>
+      <div id="error" class="panel" hidden></div>
+
+      <section id="content" class="product-layout" hidden>
+        <!-- LEFT: information -->
+        <article class="product-main">
+          <h1 id="product-title">Part</h1>
+
+          <div class="price-block">
+            <div class="price-row">
+              <span class="label">Retail Price:</span>
+              <span class="value retail" id="retail-price">$0.00</span>
+            </div>
+            <div class="price-row your">
+              <span class="label">Your Price:</span>
+              <span class="value" id="your-price">$0.00</span>
+            </div>
+          </div>
+
+          <div class="info">
+            <div class="info-line">
+              <span class="label">Make:</span>
+              <span class="value" id="make"></span>
+            </div>
+            <div class="info-line">
+              <span class="label">Part Number:</span>
+              <span class="value" id="part-number"></span>
+            </div>
+          </div>
+
+          <div id="stock-line" class="stock">0 In Stock</div>
+        </article>
+
+        <!-- RIGHT: buy box -->
+        <aside class="product-aside">
+          <div class="field">
+            <label for="qty">Quantity :</label>
+            <input id="qty" type="number" min="1" step="1" value="1" />
+          </div>
+          <button id="add-btn" type="button">Add To Cart</button>
+        </aside>
+      </section>
+    </main>
+
+    <!-- Optional global search (page works without it) -->
+    <script src="search.js"></script>
+    <script>
+      /* ------ Header search wiring ------ */
+      (function(){
+        try {
+          const count = Number(localStorage.getItem("cartCount") || "0");
+          const cc = document.getElementById("cart-count");
+          if (cc) cc.textContent = String(count);
+        } catch(e){}
+        const f = document.getElementById("header-search");
+        if (f){
+          f.addEventListener("submit", (e)=>{
+            e.preventDefault();
+            const q = (document.getElementById("header-search-input").value || "").trim();
+            if (q && typeof runSearch === "function") runSearch(q);
+          });
+        }
+      })();
+
+      /* ------ CSV helpers ------ */
+      async function fetchText(url){
+        const r = await fetch(url, {cache:'no-store'});
+        if (!r.ok) throw new Error(url + " → " + r.status);
+        return r.text();
+      }
+      function parseCSV(text){
+        const rows=[]; let i=0, f='', row=[], inQ=false;
+        const pushF=()=>{ row.push(f); f=''; };
+        const pushR=()=>{ if(row.length) rows.push(row); row=[]; };
+        while(i<text.length){
+          const c=text[i];
+          if(inQ){
+            if(c === '"'){ if(text[i+1] === '"'){ f+='"'; i+=2; } else { inQ=false; i++; } }
+            else { f+=c; i++; }
+          } else {
+            if(c === '"'){ inQ=true; i++; }
+            else if(c === ','){ pushF(); i++; }
+            else if(c === '\r'){ if(text[i+1]==='\n'){ pushF(); pushR(); i+=2; } else { pushF(); pushR(); i++; } }
+            else if(c === '\n'){ pushF(); pushR(); i++; }
+            else { f+=c; i++; }
+          }
+        }
+        pushF(); pushR();
+        if(!rows.length) return [];
+        const headers=rows[0].map(h=>String(h).trim());
+        const out=[];
+        for(let r=1;r<rows.length;r++){
+          const o={}; const rv=rows[r];
+          for(let c=0;c<headers.length;c++){ o[headers[c]] = rv[c] ?? ''; }
+          out.push(o);
+        }
+        return out;
+      }
+      const K = s => String(s||'').toUpperCase().replace(/[\s\-_]/g,'').trim();
+      const N = v => { const n=Number(String(v ?? '').replace(/[^0-9.-]/g,'')); return Number.isFinite(n)?n:0; };
+      const fmtUSD = v => { const n=Number(String(v ?? '').replace(/[^0-9.]/g,'')); return Number.isFinite(n)?("$"+n.toFixed(2)):"$0.00"; };
+
+      /* ------ Cart helpers ------ */
+      function getCart(){ try { return JSON.parse(localStorage.getItem("cart") || "[]"); } catch(e){ return []; } }
+      function setCart(cart){
+        localStorage.setItem("cart", JSON.stringify(cart));
+        const count = cart.reduce((s, it) => s + (Number(it.qty)||0), 0);
+        localStorage.setItem("cartCount", String(count));
+        const cc=document.getElementById("cart-count"); if (cc) cc.textContent=String(count);
+      }
+      function addToCart(id, qty){
+        const q = Math.max(1, Math.floor(Number(qty)||1));
+        const cart = getCart();
+        const line = cart.find(x => x.id === id);
+        if (line) line.qty = (Number(line.qty)||0) + q;
+        else cart.push({ id, qty: q });
+        setCart(cart);
+      }
+
+      /* ------ Page loader ------ */
+      (async function(){
+        const showErr = (msg)=>{ const e=document.getElementById("error"); e.textContent=msg; e.hidden=false; document.getElementById("loading").hidden=true; };
+        try{
+          const pid = (new URLSearchParams(location.search).get("id") || "").trim();
+          if (!pid) return showErr("No part id specified in URL.");
+
+          const csv = await fetchText("/parts.csv");
+          const parts = parseCSV(csv); // id,number,manufacturer,name,description,productStatus,inventory,price
+
+          const byId = new Map(parts.map(p => [K(p.id), p]));
+          const byNum = new Map(parts.map(p => [K(p.number), p]));
+          const part = byId.get(K(pid)) || byNum.get(K(pid)) || null;
+          if (!part) return showErr("Part not found: " + pid);
+
+          // Values
+          const number = part.number || part.id || "";
+          const make = part.manufacturer || "";
+          const name = part.name || "";
+          const price = N(part.price);
+          const inventory = N(part.inventory);
+
+          // Pricing
+          const tax = price * 0.075;
+          const shipping = 14.99;
+          const retail = price + tax + shipping;
+
+          // Fill UI
+          document.getElementById("product-title").textContent = (name || "Part").toUpperCase();
+          document.getElementById("your-price").textContent = fmtUSD(price);
+          document.getElementById("retail-price").textContent = fmtUSD(retail);
+          document.getElementById("make").textContent = make;
+          document.getElementById("part-number").textContent = number;
+
+          const stockEl = document.getElementById("stock-line");
+          if (inventory > 0){
+            stockEl.classList.remove("out"); stockEl.classList.add("in");
+            stockEl.textContent = `${inventory} In Stock`;
+          } else {
+            stockEl.classList.remove("in"); stockEl.classList.add("out");
+            stockEl.textContent = `Out of Stock`;
+          }
+
+          // Buy box
+          const addBtn = document.getElementById("add-btn");
+          addBtn.disabled = inventory <= 0;
+          addBtn.addEventListener("click", ()=>{
+            const qty = document.getElementById("qty").value;
+            addToCart(part.id || part.number, qty);
+            alert(`Added to cart: ${number} × ${Math.max(1, Math.floor(Number(qty)||1))}`);
+          });
+
+          document.getElementById("loading").hidden = true;
+          document.getElementById("content").hidden = false;
+        } catch (e){
+          console.error(e);
+          showErr("Failed to load part: " + e.message);
+        }
+      })();
+    </script>
+  </body>
+</html>

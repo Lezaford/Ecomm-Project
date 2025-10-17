@@ -1,0 +1,416 @@
+/* style.css */
+
+/* ====== Theme ====== */
+:root{
+  --brand-1: #c21500;   /* primary red */
+  --brand-2: #ff604c;   /* accent */
+  --brand-3: #ea4a35;   /* accent */
+  --bg: #f8f6f3;        /* off-white background */
+  --text: #1f2937;      /* slate-800 */
+  --muted: #6b7280;     /* slate-500 */
+  --border: #e5e7eb;    /* gray-200 */
+  --surface: #ffffff;
+
+  /* Buttons: contrasting blues */
+  --btn: #2563eb;       /* blue-600 */
+  --btn-hover: #1e40af; /* blue-800 (slightly darker) */
+
+  --radius: 12px;
+  --shadow: 0 8px 30px rgba(0,0,0,0.06);
+}
+
+/* ====== Base reset (light) ====== */
+*{ box-sizing: border-box; }
+html,body{ height:100%; }
+body{
+  margin:0;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+  color: var(--text);
+  background: var(--bg);
+  line-height: 1.45;
+}
+
+/* Provide a centered content width across pages */
+main, header, .panel{
+  max-width: 1120px;
+  width: 100%;
+  margin-inline: auto;
+}
+
+/* Ensure the header stretches edge-to-edge background while centering content inside */
+body > header{
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  box-shadow: var(--shadow);
+}
+
+/* Keep the inner header content centered even if inline styles are present */
+body > header{
+  max-width: 100%;
+}
+body > header > *{
+  max-width: 1120px;
+  width: 100%;
+  margin-inline: auto;
+}
+
+/* Headings */
+h1,h2,h3{ margin: 0 0 10px; }
+h1{ font-size: clamp(1.5rem, 2.5vw, 2rem); }
+h2{ font-size: clamp(1.25rem, 2vw, 1.5rem); }
+
+/* Muted helper */
+.muted{ color: var(--muted); }
+
+/* ====== Forms & Buttons ====== */
+input[type="search"],
+input[type="text"],
+input[type="email"],
+input[type="number"],
+input[type="password"]{
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--text);
+  outline: none;
+}
+input:focus{
+  border-color: var(--btn);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.18);
+}
+
+button{
+  padding: 10px 14px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: var(--btn);
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 160ms ease, background-color 160ms ease, box-shadow 160ms ease;
+  will-change: transform;
+}
+button:hover{
+  /* 10% growth on hover */
+  transform: scale(1.1);
+  background: var(--btn-hover);
+  box-shadow: 0 8px 18px rgba(30,64,175,0.25);
+  transition: transform 0.3s ease-in-out;
+}
+button:disabled{
+  opacity: .55;
+  cursor: not-allowed;
+  transform: none !important;
+}
+
+/* Anchor reset */
+a{ color: var(--btn); text-decoration: none; }
+a:hover{ text-decoration: underline; }
+
+/* ====== Panels & blocks ====== */
+.panel{
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 16px;
+  margin: 16px auto;
+}
+
+/* ====== Tables ====== */
+table{
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+}
+thead th{
+  position: sticky;   /* keep headers visible while body scrolls */
+  top: 0;
+  background: #f9fafb;
+  z-index: 1;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  padding: 10px;
+}
+tbody td{
+  border-bottom: 1px solid var(--border);
+  padding: 10px;
+}
+tbody tr:nth-child(odd){ background: #fcfcfc; }
+
+/* ====== Badges for status ====== */
+.badge{
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: .85rem;
+  border: 1px solid var(--border);
+  background: #f3f4f6;
+}
+.badge.in_stock{ background: #e8f5e9; color: #166534; border-color: #bbf7d0; }
+.badge.backordered{ background: #fff7ed; color: #9a3412; border-color: #fed7aa; }
+.badge.out_of_stock{ background: #fef2f2; color: #991b1b; border-color: #fecaca; }
+.badge.discontinued{ background: #f1f5f9; color: #334155; border-color: #cbd5e1; }
+
+/* ====== Index / Landing — center from the jump ====== */
+main{
+  padding: 20px;
+}
+main > section{
+  text-align: center;
+}
+#hero-search{
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+#hero-search input{ flex: 1; max-width: 600px; }
+
+/* Header layout */
+body > header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  box-shadow: var(--shadow);
+}
+.header-inner {
+  max-width: 1120px;
+  width: 100%;
+  margin-inline: auto;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+}
+
+/* Logo */
+.header-logo img {
+  height: 64px;
+  width: auto;
+  display: block;
+}
+
+/* Search stretches center */
+#header-search {
+  flex: 1;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* Cart on the right with badge */
+.header-cart {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;   /* icon button size */
+  height: 42px;
+  border-radius: 999px;
+  text-decoration: none;
+  color: var(--text);
+}
+.header-cart:hover { background: rgba(0,0,0,0.04); }
+
+.cart-icon {
+  width: 26px;
+  height: 26px;
+  fill: currentColor;
+  display: block;
+}
+
+/* Count badge */
+#cart-count {
+  position: absolute;
+  top: -6px;
+  right: -8px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--brand-1);
+  color: #fff;
+  font-size: 12px;
+  line-height: 18px;
+  text-align: center;
+  font-weight: 700;
+}
+
+
+/* ====== Model page tiles ====== */
+#schem-grid{
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
+}
+.schem-card{
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px;
+  box-shadow: var(--shadow);
+}
+.schem-card .thumb{
+  width: 100%;
+  aspect-ratio: 4/3;
+  background: #f8f6f3;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.schem-card .thumb img{
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+.schem-caption{
+  margin-top: 8px;
+  font-weight: 600;
+}
+
+/* ====== Schematic page: image left (sticky) + table right (independent scroll) ====== */
+.schematic-block{
+  display: grid;
+  grid-template-columns: minmax(320px, 520px) 1fr;
+  gap: 16px;
+  align-items: start;
+}
+#schem-img{
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fff;
+  position: sticky;
+  top: 16px;                 /* stay visible under header */
+  max-height: calc(100vh - 120px);
+  object-fit: contain;
+}
+.table-wrap{
+  max-height: calc(100vh - 140px);
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fff;
+}
+
+/* ====== Cart summary ====== */
+.totals{
+  display: grid;
+  gap: 8px;
+  max-width: 420px;
+  margin-left: auto;
+}
+.totals > div{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.totals .grand{
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+/* ====== Responsive tweaks ====== */
+@media (max-width: 900px){
+  .schematic-block{
+    grid-template-columns: 1fr;
+  }
+  #schem-img{
+    position: static;
+    max-height: none;
+  }
+  .table-wrap{
+    max-height: none;
+  }
+}
+
+@media (max-width: 640px){
+  button{ padding: 10px 12px; }
+  .panel{ padding: 12px; }
+}
+
+/* --- Schematic page: FORCE image left, table right --- */
+#schematic{
+  display: grid !important;
+  grid-template-columns: minmax(340px, 540px) 1fr !important;
+  gap: 16px !important;
+  align-items: start !important;
+}
+
+/* If your HTML has .schem-left/.schem-right, this also works;
+   otherwise the direct children rules cover it. */
+#schematic > .schem-left { grid-column: 1 !important; }
+#schematic > .schem-right { grid-column: 2 !important; }
+
+/* Fallback if the children don't have those classes */
+#schematic > #schem-viewport { grid-column: 1 !important; }
+#schematic > .table-wrap,
+#schematic table#parts-table { grid-column: 2 !important; }
+
+/* Kill legacy sticky image rule so transforms don't affect layout */
+#schem-img{
+  position: relative !important;
+  top: auto !important;
+  max-height: none !important;
+}
+   .totals{
+    margin-top: 16px;
+    display: grid;
+    grid-template-columns: 1fr 360px; /* spacer | summary card */
+    gap: 16px;
+  }
+  @media (max-width: 880px){ .totals{ grid-template-columns: 1fr; } }
+
+  .totals-card{
+    background:#fff;
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:16px;
+    height:fit-content;
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+  }
+
+  /* Clean 2-column summary table */
+  .summary{
+    display:grid;
+    grid-template-columns: 1fr auto;
+    row-gap: 8px;
+    column-gap: 12px;
+    align-items:center;
+  }
+  .summary .label{
+    color:#374151;
+  }
+  .summary .sub{
+    color:#6b7280;
+    font-size:12px;
+    margin-left:6px;
+  }
+  .summary .value{
+    text-align:right;
+    font-variant-numeric: tabular-nums;  /* align digits nicely */
+  }
+  .summary hr{
+    grid-column: 1 / -1;
+    border:0;
+    border-top:1px solid var(--border);
+    margin:4px 0 6px;
+  }
+  .summary .total .label{
+    font-weight:800;
+  }
+  .summary .total .value{
+    font-weight:800;
+    font-size:18px;
+  }
+
+  #checkout-btn{
+    width:100%;
+    padding:12px 14px;
+    border-radius:10px;
+    font-weight:700;
+  }

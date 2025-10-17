@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <link rel="stylesheet" href="style.css" />
+    <meta charset="utf-8" />
+    <title>Appliance Parts – Distributor</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+  </head>
+  <body>
+    <header>
+    <div class="header-inner">
+    <!-- Logo (home) -->
+    <a class="header-logo" href="index.html" aria-label="Home">
+      <img src="/logo/logo.png" alt="Appliance Parts Home" />
+    </a>
+
+    <!-- Search -->
+    <form id="header-search" role="search" aria-label="Search">
+      <input
+        id="header-search-input"
+        type="search"
+        placeholder="Enter Model or Part Number"
+        autocomplete="off"
+        required
+      />
+      <button type="submit">Search</button>
+    </form>
+
+    <!-- Cart (icon right with count badge) -->
+    <a id="cart-link" class="header-cart" href="cart.html" aria-label="Cart">
+      <!-- inline SVG icon -->
+      <svg class="cart-icon" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M7 18a2 2 0 1 0 0 4 2 2 0 0 0 0-4Zm10 0a2 2 0 1 0 .001 3.999A2 2 0 0 0 17 18ZM5.1 5h-.8a1 1 0 1 1 0-2h2.1c.46 0 .86.31.97.75L8 6h11a1 1 0 0 1 .96 1.27l-1.8 6.3A2 2 0 0 1 16.27 15H9.12a2 2 0 0 1-1.94-1.52L5.1 5Zm3.2 9h7.97a.5.5 0 0 0 .48-.36L18.3 8H8.56l1.74 6.02a.5.5 0 0 0 .5.38Z"/>
+      </svg>
+      <span id="cart-count" aria-live="polite">0</span>
+    </a>
+  </div>
+</header>
+
+
+    <main>
+      <!-- Hero: brand, tagline, primary search -->
+      <section style="text-align:center; padding:28px 12px;">
+        <img src="/logo/logo.png" alt="Appliance Parts"
+             style="max-width:300px; width:60%; height:auto; margin:8px auto 14px; display:block;" />
+        <h1 style="margin:0 0 8px;">Distributor of Appliance Repair Parts and Accessories</h1>
+
+        <form id="hero-search" role="search" aria-label="Search"
+              style="max-width:760px; margin:16px auto; display:flex; gap:8px;">
+          <input
+            id="hero-search-input"
+            type="search"
+            placeholder="Enter Model or Part Number"
+            autocomplete="off"
+            required
+            style="flex:1;"
+          />
+          <button type="submit">Search</button>
+        </form>
+      </section>
+
+      <noscript>JavaScript is required for search and cart functionality.</noscript>
+    </main>
+
+    <!-- Scripts (use existing CSV-backed search + router) -->
+    <script src="search.js"></script>
+    <script>
+      // Cart count + wire up both search bars to runSearch()
+      (function init(){
+        // cart count
+        try {
+          const count = Number(localStorage.getItem("cartCount") || "0");
+          document.getElementById("cart-count").textContent = String(count);
+        } catch (e) {}
+
+        // header search
+        const hForm = document.getElementById("header-search");
+        const hInput = document.getElementById("header-search-input");
+        hForm.addEventListener("submit", function(e){
+          e.preventDefault();
+          const q = (hInput.value || "").trim();
+          if (q) runSearch(q);
+        });
+
+        // hero/body search
+        const bForm = document.getElementById("hero-search");
+        const bInput = document.getElementById("hero-search-input");
+        bForm.addEventListener("submit", function(e){
+          e.preventDefault();
+          const q = (bInput.value || "").trim();
+          if (q) runSearch(q);
+        });
+      })();
+    </script>
+  </body>
+</html>

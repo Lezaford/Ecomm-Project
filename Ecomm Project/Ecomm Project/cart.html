@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <link rel="stylesheet" href="style.css" />
+    <meta charset="utf-8" />
+    <title>Shopping Cart</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      .cart-wrap{ max-width: 1100px; margin: 0 auto; }
+      .totals{
+        margin-top: 14px; display: grid; grid-template-columns: 1fr 360px; gap: 16px;
+      }
+      .totals-card{
+        background:#fff; border:1px solid var(--border); border-radius:10px; padding:14px; height:fit-content;
+      }
+      .sum-row{ display:flex; justify-content:space-between; margin:6px 0; }
+      .sum-row.total{ font-weight:800; font-size:18px; }
+      #checkout-btn{ width:100%; margin-top:10px; padding:12px 14px; border-radius:10px; font-weight:700; }
+      @media (max-width: 880px){ .totals{ grid-template-columns: 1fr; } }
+      .empty-note{ margin-top:12px; }
+      .qty-input{ width: 88px; text-align:center; }
+      .remove-link{ color:#c21500; cursor:pointer; text-decoration:underline; font-size:12px; margin-left:6px; }
+    </style>
+  </head>
+  <body>
+    <!-- Header -->
+    <header>
+      <div class="header-inner">
+        <a class="header-logo" href="index.html" aria-label="Home">
+          <img src="/logo/logo.png" alt="Appliance Parts Home" />
+        </a>
+        <form id="header-search" role="search" aria-label="Search">
+          <input id="header-search-input" type="search" placeholder="Enter Model or Part Number" autocomplete="off" required />
+          <button type="submit">Search</button>
+        </form>
+        <a id="cart-link" class="header-cart" href="cart.html" aria-label="Cart">
+          <svg class="cart-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M7 18a2 2 0 1 0 0 4 2 2 0 0 0 0-4Zm10 0a2 2 0 1 0 .001 3.999A2 2 0 0 0 17 18ZM5.1 5h-.8a1 1 0 1 1 0-2h2.1c.46 0 .86.31.97.75L8 6h11a1 1 0 0 1 .96 1.27l-1.8 6.3A2 2 0 0 1 16.27 15H9.12a2 2 0 0 1-1.94-1.52L5.1 5Zm3.2 9h7.97a.5.5 0 0 0 .48-.36L18.3 8H8.56l1.74 6.02a.5.5 0 0 0 .5.38Z"/>
+          </svg>
+          <span id="cart-count" aria-live="polite">0</span>
+        </a>
+      </div>
+    </header>
+
+    <main class="cart-wrap">
+      <h1>Shopping Cart</h1>
+
+      <div class="table-wrap">
+        <table id="cart-table">
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th>Part #</th>
+              <th>Unit Price</th>
+              <th>Quantity</th>
+              <th>Line Total</th>
+            </tr>
+          </thead>
+          <tbody id="cart-body"></tbody>
+        </table>
+      </div>
+
+      <div id="empty" class="panel empty-note" hidden>Your cart is empty.</div>
+      <div id="error" class="panel empty-note" hidden></div>
+
+      <section class="totals">
+  <div></div> <!-- spacer column -->
+  <aside class="totals-card">
+    <div class="summary">
+      <div class="label">Subtotal</div>
+      <div class="value" id="sum-subtotal">$0.00</div>
+
+      <div class="label">Tax <span class="sub">(7.5%)</span></div>
+      <div class="value" id="sum-tax">$0.00</div>
+
+      <div class="label">Shipping</div>
+      <div class="value" id="sum-shipping">$0.00</div>
+
+      <hr />
+
+      <div class="label total">Total</div>
+      <div class="value total" id="sum-total">$0.00</div>
+    </div>
+
+    <button id="checkout-btn" type="button">Proceed to Checkout</button>
+  </aside>
+</section>
+
+    </main>
+
+    <script src="search.js"></script>
+    <script src="checkout.js"></script>
+    <script>
+      /* ---------------- Header & basic utils ---------------- */
+      (function initHeader(){
+        try {
+          const count = Number(localStorage.getItem("cartCount") || "0");
+          document.getElementById("cart-count").textContent = String(count);
+        } catch(e){}
+        const form = document.getElementById("header-search");
+        if (form){
+          form.addEventListener("submit", function(e){
+            e.preventDefault();
+            const q = (document.getElementById("header-search-input").value || "").trim();
+            if (q && typeof runSearch === "function") runSearch(q);
+          });
+        }
+      })();
+
+      const K = s => String(s||'').toUpperCase().replace(/[\s\-_]/g,'').trim();
+      const N = v => { const n = Number(String(v ?? '').replace(/[^0-9.-]/g,'')); return Number.isFinite(n)?n:0; };
+      const money = v => { const n = Number(String(v ?? '').replace(/[^0-9.]/g,'')); return Number.isFinite(n) ? "$" + n.toFixed(2) : "$0.00"; };
+
+      function getCart(){ try { return JSON.parse(localStorage.getItem("cart") || "[]"); } catch(e){ return []; } }
+      function setCart(cart){
+        localStorage.setItem("cart", JSON.stringify(cart));
+        const count = cart.reduce((s, it) => s + (Number(it.qty)||0), 0);
+        localStorage.setItem("cartCount", String(count));
+        const el = document.getElementById("cart-count"); if (el) el.textContent = String(count);
+      }
+
+      async function fetchText(url){
+        const r = await fetch(url, {cache:'no-store'});
+        if (!r.ok) throw new Error(url + " → " + r.status);
+        return r.text();
+      }
+      function parseCSV(text){
+        const rows=[]; let i=0,f='',row=[],inQ=false;
+        const pf=()=>{ row.push(f); f=''; };
+        const pr=()=>{ if(row.length) rows.push(row); row=[]; };
+        while(i<text.length){
+          const c=text[i];
+          if(inQ){
+            if(c === '"'){ if(text[i+1] === '"'){ f+='"'; i+=2; } else { inQ=false; i++; } }
+            else { f+=c; i++; }
+          }else{
+            if(c === '"'){ inQ=true; i++; }
+            else if(c === ','){ pf(); i++; }
+            else if(c === '\r'){ if(text[i+1]==='\n'){ pf(); pr(); i+=2; } else { pf(); pr(); i++; } }
+            else if(c === '\n'){ pf(); pr(); i++; }
+            else { f+=c; i++; }
+          }
+        }
+        pf(); pr();
+        if(!rows.length) return [];
+        const headers=rows[0].map(h=>String(h).trim());
+        const out=[];
+        for(let r=1;r<rows.length;r++){
+          const o={}; const rv=rows[r];
+          for(let c=0;c<headers.length;c++){ o[headers[c]] = rv[c] ?? ''; }
+          out.push(o);
+        }
+        return out;
+      }
+
+      function lineRow(part, qty){
+        const tr = document.createElement("tr");
+
+        const nameTd = document.createElement("td");
+        nameTd.textContent = part.name || part.description || "Part";
+        tr.appendChild(nameTd);
+
+        const numTd = document.createElement("td");
+        numTd.textContent = part.number || part.id || "";
+        tr.appendChild(numTd);
+
+        const priceTd = document.createElement("td");
+        const unit = N(part.price);
+        priceTd.textContent = money(unit);
+        tr.appendChild(priceTd);
+
+        const qtyTd = document.createElement("td");
+        const input = document.createElement("input");
+        input.type = "number"; input.min = "0"; input.step = "1";
+        input.value = String(qty);
+        input.className = "qty-input";
+        qtyTd.appendChild(input);
+        const rm = document.createElement("span");
+        rm.className = "remove-link"; rm.textContent = "remove";
+        qtyTd.appendChild(rm);
+        tr.appendChild(qtyTd);
+
+        const totalTd = document.createElement("td");
+        totalTd.textContent = money(unit * qty);
+        tr.appendChild(totalTd);
+
+        return { tr, input, rm, totalTd, unit };
+      }
+
+      function recalcTotals(lines){
+        const subtotal = lines.reduce((s, ln) => s + (ln.unit * ln.qty), 0);
+        const tax = subtotal * 0.075;
+        const shipping = subtotal > 0 ? 14.99 : 0;
+        const total = subtotal + tax + shipping;
+        document.getElementById("sum-subtotal").textContent = money(subtotal);
+        document.getElementById("sum-tax").textContent = money(tax);
+        document.getElementById("sum-shipping").textContent = money(shipping);
+        document.getElementById("sum-total").textContent = money(total);
+        return { subtotal, tax, shipping, total };
+      }
+
+      (async function loadCart(){
+        const error = (msg) => { const e=document.getElementById("error"); e.textContent = msg; e.hidden = false; };
+        try{
+          const cart = getCart().filter(it => Number(it.qty) > 0);
+          setCart(cart); // normalize count
+          const body = document.getElementById("cart-body");
+          body.innerHTML = "";
+
+          if (cart.length === 0){
+            document.getElementById("empty").hidden = false;
+            recalcTotals([]);
+            return;
+          }
+
+          // Load catalog
+          const partsCsv = await fetchText("/parts.csv");
+          const parts = parseCSV(partsCsv);
+
+          // Index by both id and number
+          const byId = new Map(parts.map(p => [K(p.id), p]));
+          const byNum = new Map(parts.map(p => [K(p.number), p]));
+
+          const uiLines = [];
+          cart.forEach((line, idx) => {
+            const idKey = K(line.id);
+            const part = byId.get(idKey) || byNum.get(idKey);
+            if (!part){
+              // Unknown line: show a placeholder row that can be removed
+              const tr = document.createElement("tr");
+              const tds = ["Unknown item", line.id, "-", "-", "-"].map(v => {
+                const td = document.createElement("td"); td.textContent = v; return td;
+              });
+              tds.forEach(td => tr.appendChild(td));
+              body.appendChild(tr);
+              return;
+            }
+            const ui = lineRow(part, Number(line.qty)||1);
+            body.appendChild(ui.tr);
+            uiLines.push({ unit: ui.unit, qty: Number(line.qty)||1, id: line.id, input: ui.input, rm: ui.rm, totalTd: ui.totalTd });
+
+            // quantity change
+            ui.input.addEventListener("input", () => {
+              let q = Math.max(0, Math.floor(Number(ui.input.value)||0));
+              ui.input.value = String(q);
+              const stored = getCart();
+              const item = stored.find(x => x.id === line.id);
+              if (item){ item.qty = q; }
+              setCart(stored);
+              ui.totalTd.textContent = money(ui.unit * q);
+              uiLines.forEach(ln => { if (ln.id === line.id) ln.qty = q; });
+              recalcTotals(uiLines);
+            });
+
+            // remove
+            ui.rm.addEventListener("click", () => {
+              const stored = getCart().filter(x => x.id !== line.id);
+              setCart(stored);
+              ui.tr.remove();
+              const next = uiLines.filter(ln => ln.id !== line.id);
+              recalcTotals(next);
+              if (stored.length === 0){
+                document.getElementById("empty").hidden = false;
+              }
+            });
+          });
+
+          recalcTotals(uiLines);
+
+          // Checkout wiring
+          document.getElementById("checkout-btn").addEventListener("click", () => {
+            const current = getCart().filter(it => Number(it.qty) > 0);
+            if (current.length === 0){ alert("Your cart is empty."); return; }
+            const totals = recalcTotals(uiLines);
+            const payload = { items: current, totals };
+            if (typeof openCheckout === "function") openCheckout(payload);
+            else if (typeof showCheckout === "function") showCheckout(payload);
+            else alert("Checkout UI not available yet.");
+          });
+
+        } catch (e){
+          console.error(e);
+          error("Failed to load cart or catalog data.");
+        }
+      })();
+    </script>
+  </body>
+</html>

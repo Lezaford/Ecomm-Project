@@ -1,0 +1,421 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <link rel="stylesheet" href="style.css" />
+    <meta charset="utf-8" />
+    <title>Schematic – Appliance Parts</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      /* Bigger viewer on the left */
+      .schem-grid{
+        display: grid;
+        grid-template-columns: minmax(620px, 62%) 1fr; /* larger left */
+        gap: 16px;
+        align-items: start;
+      }
+      .schem-left{ grid-column: 1; }
+      .schem-right{ grid-column: 2; }
+      .schem-title{ text-align:center; margin: 6px 0 12px; }
+
+      /* Viewer */
+      .schem-viewport{
+        position: sticky;
+        top: 16px;
+        width: 100%;
+        max-height: calc(100vh - 140px);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: #fff;
+        overflow: hidden;
+        box-shadow: var(--shadow);
+        touch-action: none; /* enable panning */
+      }
+      .schem-stage{ position: relative; width: 100%; height: 100%; overflow: hidden; }
+      .schem-canvas{ width: 100%; height: 100%; transform-origin: 0 0; will-change: transform; }
+      #schem-img{
+        width: 100%;
+        height: auto;
+        display: block;
+        user-select: none;
+        pointer-events: none;
+        image-rendering: -webkit-optimize-contrast;
+        image-rendering: crisp-edges;
+      }
+      .schem-ctrls{
+        position: absolute;
+        z-index: 3;
+        top: 8px;
+        right: 8px;
+        display: flex;
+        gap: 6px;
+      }
+      .schem-ctrls button{ padding: 6px 10px; font-size: 14px; border-radius: 8px; }
+
+      /* Right table area */
+      .schem-right .table-wrap{
+        width: 100%;
+        max-height: calc(100vh - 160px);
+        overflow: auto; /* both axes as needed */
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: #fff;
+      }
+      #parts-table{ width: 100%; min-width: 980px; table-layout: auto; }
+
+      /* Simple badges (optional—style.css may already define these) */
+      .badge{ display:inline-block; padding:2px 6px; border-radius:6px; border:1px solid #e5e7eb; font-size:12px; }
+      .badge.in_stock{ background:#e7f8ef; border-color:#b7e4cb; }
+      .badge.backordered{ background:#fff7e6; border-color:#ffe0a6; }
+      .badge.out_of_stock{ background:#fdecec; border-color:#f5b7b7; }
+      .badge.discontinued{ background:#f1f5f9; border-color:#e2e8f0; color:#475569; }
+    </style>
+  </head>
+  <body>
+    <!-- Header -->
+    <header>
+      <div class="header-inner">
+        <a class="header-logo" href="index.html" aria-label="Home">
+          <img src="/logo/logo.png" alt="Appliance Parts Home" />
+        </a>
+        <form id="header-search" role="search" aria-label="Search">
+          <input id="header-search-input" type="search" placeholder="Enter Model or Part Number" autocomplete="off" required />
+          <button type="submit">Search</button>
+        </form>
+        <a id="cart-link" class="header-cart" href="cart.html" aria-label="Cart">
+          <svg class="cart-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M7 18a2 2 0 1 0 0 4 2 2 0 0 0 0-4Zm10 0a2 2 0 1 0 .001 3.999A2 2 0 0 0 17 18ZM5.1 5h-.8a1 1 0 1 1 0-2h2.1c.46 0 .86.31.97.75L8 6h11a1 1 0 0 1 .96 1.27l-1.8 6.3A2 2 0 0 1 16.27 15H9.12a2 2 0 0 1-1.94-1.52L5.1 5Zm3.2 9h7.97a.5.5 0 0 0 .48-.36L18.3 8H8.56l1.74 6.02a.5.5 0 0 0 .5.38Z"/>
+          </svg>
+          <span id="cart-count" aria-live="polite">0</span>
+        </a>
+      </div>
+    </header>
+
+    <main>
+      <h1 id="page-title">Schematic</h1>
+      <h2 id="schem-name" class="schem-title"></h2>
+
+      <section id="schematic" class="schem-grid" hidden>
+        <!-- LEFT: Viewer -->
+        <div class="schem-left">
+          <div id="schem-viewport" class="schem-viewport" aria-label="Schematic viewer">
+            <div class="schem-ctrls" aria-hidden="true">
+              <button type="button" id="zoom-out" title="Zoom out">−</button>
+              <button type="button" id="zoom-in" title="Zoom in">+</button>
+              <button type="button" id="zoom-reset" title="Reset view">Reset</button>
+            </div>
+            <div class="schem-stage">
+              <div id="schem-canvas" class="schem-canvas">
+                <img id="schem-img" alt="Schematic" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- RIGHT: Parts table -->
+        <div class="schem-right">
+          <div class="table-wrap">
+            <table id="parts-table">
+              <thead>
+                <tr>
+                  <th>Diagram Number</th>
+                  <th>Part Number</th>
+                  <th>Name</th>
+                  <th>Status</th>
+                  <th>Inventory</th>
+                  <th>Price</th>
+                  <th>Add</th>
+                </tr>
+              </thead>
+              <tbody id="parts-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <div id="loading" class="panel">Loading…</div>
+      <div id="error" class="panel" hidden></div>
+    </main>
+
+    <!-- Optional search (for header). -->
+    <script src="search.js"></script>
+
+    <script>
+      /* ============ Header wiring ============ */
+      (function initHeader(){
+        try {
+          const count = Number(localStorage.getItem("cartCount") || "0");
+          document.getElementById("cart-count").textContent = String(count);
+        } catch (e) {}
+        const form = document.getElementById("header-search");
+        if (form){
+          form.addEventListener("submit", function(e){
+            e.preventDefault();
+            const q = (document.getElementById("header-search-input").value || "").trim();
+            if (q && typeof runSearch === "function") { runSearch(q); }
+          });
+        }
+      })();
+
+      /* ============ CSV helpers (self-contained) ============ */
+      async function fetchText(url){
+        const r = await fetch(url, {cache:'no-store'});
+        if (!r.ok) throw new Error(url + " → " + r.status);
+        return r.text();
+      }
+      function parseCSV(text){
+        const rows = [];
+        let i=0, field='', row=[], inQ=false;
+        const pushField=()=>{ row.push(field); field=''; };
+        const pushRow=()=>{ if (row.length) rows.push(row); row=[]; };
+        while (i<text.length){
+          const c = text[i];
+          if (inQ){
+            if (c === '"'){
+              if (text[i+1] === '"'){ field+='"'; i+=2; continue; }
+              inQ=false; i++; continue;
+            } else { field+=c; i++; continue; }
+          } else {
+            if (c === '"'){ inQ=true; i++; continue; }
+            if (c === ','){ pushField(); i++; continue; }
+            if (c === '\r'){ if (text[i+1]==='\n'){ pushField(); pushRow(); i+=2; continue; } pushField(); pushRow(); i++; continue; }
+            if (c === '\n'){ pushField(); pushRow(); i++; continue; }
+            field+=c; i++; continue;
+          }
+        }
+        pushField(); pushRow();
+        if (!rows.length) return [];
+        const headers = rows[0].map(h => String(h).trim());
+        const out = [];
+        for (let r=1; r<rows.length; r++){
+          const obj = {};
+          const rv = rows[r];
+          for (let c=0; c<headers.length; c++){
+            obj[headers[c]] = rv[c] !== undefined ? rv[c] : '';
+          }
+          out.push(obj);
+        }
+        return out;
+      }
+      const N = (v) => { const n = Number(String(v ?? '').replace(/[^0-9.-]/g,'')); return Number.isFinite(n) ? n : 0; };
+      const K = (s) => String(s||'').toUpperCase().replace(/[\s\-_]/g,'').trim();
+
+      /* ============ Image loader (PNG → WebP → JPG) ============ */
+      function loadSchematicImage(stem){
+        const img = document.getElementById("schem-img");
+        const candidates = [
+          `/schematics/${stem}.png`,
+          `/schematics/${stem}.webp`,
+          `/schematics/${stem}.jpg`
+        ];
+        let i = 0;
+        function next(){
+          if (i < candidates.length){
+            img.onerror = next;
+            img.src = candidates[i++];
+          }
+        }
+        next();
+      }
+
+      /* ============ Zoom & Pan (+/−/Reset) ============ */
+      (function setupZoomPan(){
+        let scale = 1;
+        const minScale = 0.75, maxScale = 3;
+        let tx = 0, ty = 0;
+        let dragging = false, sx=0, sy=0, stx=0, sty=0;
+
+        const viewport = document.getElementById("schem-viewport");
+        const canvas   = document.getElementById("schem-canvas");
+
+        function apply(){ canvas.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`; }
+
+        function zoomAt(cx, cy, dir){
+          const rect = viewport.getBoundingClientRect();
+          const px = cx - rect.left, py = cy - rect.top;
+          const prev = scale;
+          const factor = dir < 0 ? 1.12 : 0.9; // -1 in, +1 out
+          scale = Math.min(maxScale, Math.max(minScale, scale * factor));
+          const sxp = (px - tx) / prev, syp = (py - ty) / prev;
+          tx = px - sxp * scale; ty = py - syp * scale;
+          apply();
+        }
+
+        document.getElementById("zoom-in").addEventListener("click", () => {
+          const r = viewport.getBoundingClientRect();
+          zoomAt(r.left + r.width/2, r.top + r.height/2, -1);
+        });
+        document.getElementById("zoom-out").addEventListener("click", () => {
+          const r = viewport.getBoundingClientRect();
+          zoomAt(r.left + r.width/2, r.top + r.height/2, +1);
+        });
+        document.getElementById("zoom-reset").addEventListener("click", () => {
+          scale = 1; tx = 0; ty = 0; apply();
+        });
+
+        viewport.addEventListener("wheel", (e) => {
+          e.preventDefault();
+          zoomAt(e.clientX, e.clientY, e.deltaY);
+        }, { passive: false });
+
+        viewport.addEventListener("pointerdown", (e) => {
+          dragging = true; sx = e.clientX; sy = e.clientY; stx = tx; sty = ty;
+          viewport.setPointerCapture(e.pointerId);
+        });
+        viewport.addEventListener("pointermove", (e) => {
+          if (!dragging) return;
+          tx = stx + (e.clientX - sx);
+          ty = sty + (e.clientY - sy);
+          apply();
+        });
+        function endDrag(e){ if (!dragging) return; dragging = false; try{ viewport.releasePointerCapture(e.pointerId);}catch{} }
+        viewport.addEventListener("pointerup", endDrag);
+        viewport.addEventListener("pointercancel", endDrag);
+        viewport.addEventListener("pointerleave", endDrag);
+
+        window.__schemZoomReset = () => { scale = 1; tx = 0; ty = 0; apply(); };
+      })();
+
+      /* ============ Page loader (self-contained) ============ */
+      (async function loadSchematic(){
+        const err = (msg) => { const e=document.getElementById("error"); e.textContent = msg; e.hidden = false; document.getElementById("loading").hidden = true; };
+        const ok  = () => { document.getElementById("error").hidden = true; document.getElementById("loading").hidden = true; document.getElementById("schematic").hidden = false; };
+
+        try{
+          const urlId = new URLSearchParams(location.search).get("id");
+          if (!urlId) return err("No schematic id in URL.");
+
+          // Load CSVs
+          const [schemTxt, linksTxt, partsTxt] = await Promise.all([
+            fetchText("/schematics.csv"),
+            fetchText("/schematic_parts.csv"),
+            fetchText("/parts.csv")
+          ]);
+          const schems = parseCSV(schemTxt);              // id,modelID,name,order,image
+          const links  = parseCSV(linksTxt);              // schematicID,diagramNo,Order,partID
+          const parts  = parseCSV(partsTxt);              // id,number,manufacturer,name,description,productStatus,inventory,price
+
+          // Find schematic row
+          const sRow = schems.find(r => (r.id || '').trim() === urlId.trim());
+          if (!sRow) return err("No schematic found with id: " + urlId);
+
+          // Title + subtitle
+          const modelId = (sRow.modelID || "").trim();
+          const schemName = (sRow.name || sRow.id || "").trim();
+          document.getElementById("page-title").textContent = `Schematic: ${schemName}${modelId ? " (Model " + modelId + ")" : ""}`;
+          document.getElementById("schem-name").textContent = schemName;
+
+          // Image stem → prefer PNG
+          const stem = (sRow.image || sRow.id || "").trim();
+          loadSchematicImage(stem);
+          document.getElementById("schem-img").addEventListener("load", () => {
+            if (window.__schemZoomReset) window.__schemZoomReset();
+          });
+
+          // Build parts table rows
+          const byIdKey = new Map(parts.map(p => [K(p.id), p]));
+          const byNumKey = new Map(parts.map(p => [K(p.number), p]));
+
+          const rows = links
+            .filter(l => (l.schematicID || '').trim() === urlId.trim())
+            .map(l => {
+              const pid = (l.partID || l.partId || '').trim();
+              const part = byIdKey.get(K(pid)) || byNumKey.get(K(pid)) || null;
+              return {
+                diagramNo: N(l.diagramNo),
+                order: N(l.Order || l.order),
+                partId: pid,
+                part
+              };
+            })
+            .sort((a,b)=> (a.order - b.order) || (a.diagramNo - b.diagramNo));
+
+          const tbody = document.getElementById("parts-body");
+          tbody.innerHTML = "";
+          if (!rows.length){
+            const tr = document.createElement("tr");
+            const td = document.createElement("td");
+            td.colSpan = 7; td.textContent = "No parts listed for this schematic.";
+            tr.appendChild(td); tbody.appendChild(tr);
+          } else {
+            rows.forEach((r, idx) => {
+              const tr = document.createElement("tr");
+
+              // Diagram Number: from Order (fallback diagramNo or index)
+              const diag = r.order > 0 ? r.order : (r.diagramNo > 0 ? r.diagramNo : (idx + 1));
+              const td1 = document.createElement("td"); td1.textContent = String(diag); tr.appendChild(td1);
+
+              // Part Number link
+              const pn = r.part ? (r.part.number || r.part.id || r.partId) : r.partId;
+              const td2 = document.createElement("td");
+              const a = document.createElement("a");
+              a.href = "parts.html?id=" + encodeURIComponent(r.part ? (r.part.id || r.part.number || r.partId) : r.partId);
+              a.textContent = pn || (r.partId || "");
+              td2.appendChild(a); tr.appendChild(td2);
+
+              // Name
+              const td3 = document.createElement("td"); td3.textContent = r.part ? (r.part.name || r.part.description || "") : ""; tr.appendChild(td3);
+
+              // Status
+              const td4 = document.createElement("td");
+              const badge = document.createElement("span"); const st = mapStatus(r.part ? r.part.productStatus : "");
+              badge.className = st.cls; badge.textContent = st.text; td4.appendChild(badge);
+              tr.appendChild(td4);
+
+              // Inventory
+              const inv = r.part ? (N(r.part.inventory) || 0) : 0;
+              const td5 = document.createElement("td"); td5.textContent = String(inv); tr.appendChild(td5);
+
+              // Price
+              const td6 = document.createElement("td"); td6.textContent = formatUSD(r.part ? r.part.price : 0); tr.appendChild(td6);
+
+              // Add button
+              const td7 = document.createElement("td");
+              const btn = document.createElement("button"); btn.type="button"; btn.textContent="Add to Cart";
+              const purch = r.part && String(r.part.productStatus||"").toLowerCase()==="in_stock" && inv>0;
+              btn.disabled = !purch;
+              btn.addEventListener("click", () => { addOneToCart(r.part ? (r.part.id || r.part.number || r.partId) : r.partId); alert("Added to cart: " + (pn || r.partId)); });
+              td7.appendChild(btn); tr.appendChild(td7);
+
+              tbody.appendChild(tr);
+            });
+          }
+
+          ok();
+        } catch (e){
+          console.error(e);
+          err("Failed to load schematic: " + e.message);
+        }
+      })();
+
+      /* ============ UI helpers ============ */
+      function mapStatus(s){
+        const t = String(s || "").toLowerCase();
+        if (t === "in_stock")     return { text: "In Stock",     cls: "badge in_stock" };
+        if (t === "backordered")  return { text: "Backordered",  cls: "badge backordered" };
+        if (t === "out_of_stock") return { text: "Out of Stock", cls: "badge out_of_stock" };
+        if (t === "discontinued") return { text: "Discontinued", cls: "badge discontinued" };
+        return { text: s || "", cls: "badge" };
+      }
+      function formatUSD(v){
+        const n = Number(String(v ?? '').replace(/[^0-9.]/g,'')); 
+        return Number.isFinite(n) ? "$" + n.toFixed(2) : "$0.00";
+      }
+
+      /* ============ Cart helpers (localStorage) ============ */
+      function getCart(){ try { return JSON.parse(localStorage.getItem("cart") || "[]"); } catch(e){ return []; } }
+      function setCart(cart){
+        localStorage.setItem("cart", JSON.stringify(cart));
+        const count = cart.reduce((s, it) => s + (Number(it.qty) || 0), 0);
+        localStorage.setItem("cartCount", String(count));
+        const el = document.getElementById("cart-count"); if (el) el.textContent = String(count);
+      }
+      function addOneToCart(id){
+        const cart = getCart();
+        const line = cart.find(x => x.id === id);
+        if (line) line.qty = (Number(line.qty) || 0) + 1;
+        else cart.push({ id, qty: 1 });
+        setCart(cart);
+      }
+    </script>
+  </body>
+</html>
